@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const [url, setUrl] = useState("");
   const [addError, setAddError] = useState("");
   const [addLoading, setAddLoading] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [githubToken, setGithubToken] = useState("");
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -46,14 +48,19 @@ export default function DashboardPage() {
     setAddLoading(true);
     setAddError("");
 
+    const body: Record<string, string> = { url };
+    if (githubToken) body.github_token = githubToken;
+
     const res = await apiFetch<Repo>("/api/repos", {
       method: "POST",
-      body: JSON.stringify({ url }),
+      body: JSON.stringify(body),
     });
 
     if (res.success && res.data) {
       setRepos([res.data, ...repos]);
       setUrl("");
+      setGithubToken("");
+      setShowAdvanced(false);
     } else {
       setAddError(res.error?.message || "Failed to add repository.");
     }
@@ -67,22 +74,45 @@ export default function DashboardPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold mb-6">Your Repositories</h1>
 
-        <form onSubmit={handleAddRepo} className="flex gap-3 mb-6">
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://github.com/owner/repo"
-            className="border border-gray-300 rounded-lg px-3 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
+        <form onSubmit={handleAddRepo} className="mb-6">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://github.com/owner/repo"
+              className="border border-gray-300 rounded-lg px-3 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            <button
+              type="submit"
+              disabled={addLoading}
+              className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {addLoading ? "Adding..." : "Add Repository"}
+            </button>
+          </div>
           <button
-            type="submit"
-            disabled={addLoading}
-            className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="text-xs text-blue-600 hover:underline mt-2"
           >
-            {addLoading ? "Adding..." : "Add Repository"}
+            {showAdvanced ? "Hide advanced options" : "Show advanced options"}
           </button>
+          {showAdvanced && (
+            <div className="mt-2">
+              <input
+                type="password"
+                value={githubToken}
+                onChange={(e) => setGithubToken(e.target.value)}
+                placeholder="GitHub personal access token"
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Required for private repositories. Your token is encrypted at rest and never exposed in API responses.
+              </p>
+            </div>
+          )}
         </form>
         {addError && <p className="text-red-600 text-sm mb-4">{addError}</p>}
 

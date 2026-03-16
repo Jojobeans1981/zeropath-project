@@ -16,6 +16,7 @@ class Repository(Base):
     user_id = Column(CHAR(36), ForeignKey("users.id"), index=True, nullable=False)
     url = Column(String, nullable=False)
     name = Column(String, nullable=False)
+    github_token_encrypted = Column(String, nullable=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 

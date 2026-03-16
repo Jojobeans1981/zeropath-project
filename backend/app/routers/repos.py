@@ -19,7 +19,7 @@ async def create_repo(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = await repo_service.create_or_get_repo(db, current_user.id, req.url)
+    repo = await repo_service.create_or_get_repo(db, current_user.id, req.url, req.github_token)
     data = RepoResponse(
         id=repo.id,
         url=repo.url,

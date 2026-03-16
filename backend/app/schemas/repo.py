@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, field_validator
 from app.schemas.scan import ScanResponse
 
 
 class CreateRepoRequest(BaseModel):
     url: str
+    github_token: Optional[str] = None
 
     @field_validator("url")
     @classmethod

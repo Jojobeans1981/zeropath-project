@@ -17,6 +17,7 @@ from app.scanner.chunker import FileContent, chunk_files
 from app.scanner.dedup import compute_identity_hash
 from app.scanner.git_ops import clone_repo, discover_python_files
 from app.services.finding_service import carry_forward_triage
+from app.services.pubsub_service import publish_scan_event_sync
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,19 @@ def run_scan(scan_id: str) -> None:
         scan.started_at = datetime.now(timezone.utc)
         db.commit()
         logger.info("[Worker] Starting scan %s for repo %s", scan_id, repo.name)
+        try:
+            publish_scan_event_sync(scan_id, "status_change", {"status": "running"})
+        except Exception:
+            logger.warning("[Worker] Failed to publish event (non-fatal)")
 
         # 3. Clone repo
         temp_dir.mkdir(parents=True, exist_ok=True)
-        commit_sha = clone_repo(repo.url, temp_dir)
+        github_token = None
+        if repo.github_token_encrypted:
+            from app.services.crypto_service import decrypt_token
+            github_token = decrypt_token(repo.github_token_encrypted)
+            logger.info("[Worker] Cloning with authentication")
+        commit_sha = clone_repo(repo.url, temp_dir, github_token=github_token)
         scan.commit_sha = commit_sha
         db.commit()
 
@@ -88,6 +98,12 @@ def run_scan(scan_id: str) -> None:
             logger.info("[Worker] Analyzing chunk %d/%d", i + 1, len(chunks))
             findings = analyze_chunk(chunk)
             all_findings.extend(findings)
+            try:
+                publish_scan_event_sync(scan_id, "chunk_progress", {"current": i + 1, "total": len(chunks)})
+                for finding_dict in findings:
+                    publish_scan_event_sync(scan_id, "finding_discovered", finding_dict)
+            except Exception:
+                logger.warning("[Worker] Failed to publish event (non-fatal)")
 
         # 8. Deduplicate and persist findings
         seen_hashes: set = set()
@@ -137,9 +153,17 @@ def run_scan(scan_id: str) -> None:
         scan.completed_at = datetime.now(timezone.utc)
         db.commit()
         logger.info("[Worker] Scan %s complete: %d files, %d findings", scan_id, len(file_contents), persisted_count)
+        try:
+            publish_scan_event_sync(scan_id, "scan_complete", {"files_scanned": len(file_contents), "finding_count": persisted_count})
+        except Exception:
+            logger.warning("[Worker] Failed to publish event (non-fatal)")
 
     except Exception as e:
         logger.exception("[Worker] Scan %s failed: %s", scan_id, str(e))
+        try:
+            publish_scan_event_sync(scan_id, "scan_failed", {"error_message": str(e)[:500]})
+        except Exception:
+            logger.warning("[Worker] Failed to publish event (non-fatal)")
         try:
             scan = db.query(Scan).filter(Scan.id == scan_id).first()
             if scan:

@@ -57,5 +57,16 @@ General development progress and decisions for the ZeroPath Security Scanner pro
 - NavHeader: user email + logout
 - Deployment: Procfile, runtime.txt, startup auto-migration
 
+### Phase 8: Private Repo Auth + SARIF Export — COMPLETE
+- Fernet-encrypted GitHub token storage (write-only, never exposed in responses)
+- SARIF v2.1.0 export with severity mapping, rules dedup, identity hash in properties
+- Frontend: token input for private repos, SARIF download button
+
+### Phase 9: WebSocket Real-Time Updates — COMPLETE
+- Redis pub/sub for real-time scan events (sync publisher + async subscriber)
+- WebSocket endpoint with JWT auth, ownership verification, custom close codes
+- Worker publishes: status_change, chunk_progress, finding_discovered, scan_complete, scan_failed
+- Frontend: WebSocket with polling fallback, progress bar, progressive findings
+
 ### Project Status
-All 8 phases (0-7) complete. Project is ready for submission.
+All 10 phases (0-9) complete. Phases 10-11 remaining (stretch goals).

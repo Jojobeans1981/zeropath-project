@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     scan_workdir: str = "/tmp/zeropath-scans"
     cors_origins: str = "http://localhost:3000"
     port: int = 8000
+    repo_encryption_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env")
 

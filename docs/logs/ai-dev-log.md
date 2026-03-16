@@ -88,3 +88,26 @@ Records what was built by AI in each session, including decisions made and devia
 - Updated NavHeader: fetches user email via GET /me, shows logout button, redirects on expired token
 - Created deployment config: Procfile (web + worker), runtime.txt (Python 3.11), startup auto-migration
 - Added `port` setting to config.py
+
+## 2026-03-16 — Phase 8: Private Repo Auth + SARIF Export
+
+- Created crypto_service (Fernet encrypt/decrypt) for GitHub token storage
+- Added github_token_encrypted column to Repository model + migration
+- Updated repo creation to accept optional github_token (write-only, encrypted at rest)
+- Updated Celery worker to decrypt token for authenticated clones
+- Created SARIF v2.1.0 export service with proper schema, rules dedup, severity mapping
+- Added GET /api/scans/:id/sarif endpoint (before /{scan_id} to avoid route conflict)
+- Frontend: collapsible "Advanced" section with password input for GitHub token
+- Frontend: "Export SARIF" button triggers file download via Blob
+- 23/23 tests still pass, frontend TypeScript clean
+
+## 2026-03-16 — Phase 9: WebSocket Real-Time Updates
+
+- Created pubsub_service: sync publisher (Celery worker) + async subscriber (WebSocket handler) via Redis pub/sub
+- Created WebSocket endpoint at /api/ws/scans/{scan_id} with token auth via query param
+- Auth: validates JWT, verifies scan ownership, closes with custom codes (4001/4003/4004)
+- Terminal scans send one event then close immediately
+- Added event publishing to worker: status_change, chunk_progress, finding_discovered, scan_complete, scan_failed (all best-effort)
+- Frontend: WebSocket with polling fallback, progress bar showing chunk N of M, progressive findings during scan
+- On scan_complete, does final fetchScan() to get accurate triage data
+- 23/23 tests pass, frontend TypeScript clean

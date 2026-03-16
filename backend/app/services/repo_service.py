@@ -10,7 +10,9 @@ def extract_repo_name(url: str) -> str:
     return f"{parts[-2]}/{parts[-1]}"
 
 
-async def create_or_get_repo(db: AsyncSession, user_id: str, url: str) -> Repository:
+async def create_or_get_repo(
+    db: AsyncSession, user_id: str, url: str, github_token: str = None
+) -> Repository:
     url = url.rstrip("/").rstrip(".git")
     result = await db.execute(
         select(Repository).where(Repository.user_id == user_id, Repository.url == url)
@@ -19,10 +21,16 @@ async def create_or_get_repo(db: AsyncSession, user_id: str, url: str) -> Reposi
     if existing:
         return existing
 
+    encrypted_token = None
+    if github_token:
+        from app.services.crypto_service import encrypt_token
+        encrypted_token = encrypt_token(github_token)
+
     repo = Repository(
         user_id=user_id,
         url=url,
         name=extract_repo_name(url),
+        github_token_encrypted=encrypted_token,
     )
     db.add(repo)
     await db.commit()

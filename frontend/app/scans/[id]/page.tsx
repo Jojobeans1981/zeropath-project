@@ -11,6 +11,8 @@ import { SeverityBadge } from "@/components/SeverityBadge";
 import { FindingCard } from "@/components/FindingCard";
 import { ComparisonTable } from "@/components/ComparisonTable";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface Scan {
   id: string;
   repo_id: string;
@@ -67,9 +69,9 @@ export default function ScanDetailPage() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const scanRef = useRef<Scan | null>(null);
   const [triageFilter, setTriageFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Comparison state
   const [otherScans, setOtherScans] = useState<Scan[]>([]);
@@ -77,11 +79,18 @@ export default function ScanDetailPage() {
   const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
   const [comparingLoading, setComparingLoading] = useState(false);
 
+  // Refs for cleanup
+  const scanRef = useRef<Scan | null>(null);
+
   useEffect(() => {
     if (!getAccessToken()) {
       router.replace("/login");
       return;
     }
+
+    let ws: WebSocket | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let cancelled = false;
 
     const fetchScan = async () => {
       const res = await apiFetch<Scan>(`/api/scans/${id}`);
@@ -93,7 +102,6 @@ export default function ScanDetailPage() {
           if (findingsRes.success && findingsRes.data) {
             setFindings(findingsRes.data);
           }
-
           // Fetch other scans for comparison dropdown
           const repoRes = await apiFetch<RepoDetail>(`/api/repos/${res.data.repo_id}`);
           if (repoRes.success && repoRes.data) {
@@ -106,16 +114,81 @@ export default function ScanDetailPage() {
       setLoading(false);
     };
 
-    fetchScan();
-    const interval = setInterval(() => {
-      if (!scanRef.current || scanRef.current.status === "queued" || scanRef.current.status === "running") {
-        fetchScan();
-      } else {
-        clearInterval(interval);
-      }
-    }, 5000);
+    const token = getAccessToken();
+    if (!token) return;
 
-    return () => clearInterval(interval);
+    // Initial fetch
+    fetchScan();
+
+    // Try WebSocket
+    const wsProtocol = API_URL.startsWith("https") ? "wss" : "ws";
+    const wsBase = API_URL.replace(/^https?/, wsProtocol);
+    const wsUrl = `${wsBase}/api/ws/scans/${id}?token=${token}`;
+
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    };
+
+    ws.onmessage = (event) => {
+      if (cancelled) return;
+      const msg = JSON.parse(event.data);
+      switch (msg.type) {
+        case "status_change":
+          setScan(prev => prev ? { ...prev, status: msg.data.status } : prev);
+          break;
+        case "chunk_progress":
+          setProgress(msg.data);
+          break;
+        case "finding_discovered":
+          setFindings(prev => [...prev, { ...msg.data, triage_status: null, triage_notes: null }]);
+          break;
+        case "scan_complete":
+          setScan(prev => prev ? {
+            ...prev,
+            status: "complete",
+            files_scanned: msg.data.files_scanned,
+          } : prev);
+          setProgress(null);
+          // Fetch final findings list for accurate triage data
+          fetchScan();
+          break;
+        case "scan_failed":
+          setScan(prev => prev ? {
+            ...prev,
+            status: "failed",
+            error_message: msg.data.error_message,
+          } : prev);
+          setProgress(null);
+          break;
+      }
+    };
+
+    ws.onerror = () => {
+      // Fallback to polling
+      ws?.close();
+      ws = null;
+      if (!cancelled && !pollInterval) {
+        pollInterval = setInterval(() => {
+          if (!scanRef.current || scanRef.current.status === "queued" || scanRef.current.status === "running") {
+            fetchScan();
+          } else if (pollInterval) {
+            clearInterval(pollInterval);
+          }
+        }, 5000);
+      }
+    };
+
+    ws.onclose = () => {
+      ws = null;
+    };
+
+    return () => {
+      cancelled = true;
+      ws?.close();
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [id, router]);
 
   // Auto-trigger comparison from URL query param
@@ -139,13 +212,25 @@ export default function ScanDetailPage() {
     setComparisonData(null);
   };
 
+  const handleExportSarif = async () => {
+    const res = await fetch(`${API_URL}/api/scans/${id}/sarif`, {
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+    });
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `zeropath-scan-${id}.sarif.json`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleTriageUpdate = (findingId: string, status: string, notes: string | null) => {
     setFindings((prev) =>
       prev.map((f) =>
         f.id === findingId ? { ...f, triage_status: status, triage_notes: notes } : f
       )
     );
-    // Also update comparison data if active
     if (comparisonData) {
       setComparisonData((prev) => {
         if (!prev) return prev;
@@ -199,6 +284,14 @@ export default function ScanDetailPage() {
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-xl font-bold">Scan</h1>
                 <StatusBadge status={scan.status} />
+                {scan.status === "complete" && (
+                  <button
+                    onClick={handleExportSarif}
+                    className="ml-auto text-sm text-blue-600 hover:underline"
+                  >
+                    Export SARIF
+                  </button>
+                )}
               </div>
               <div className="flex gap-4 text-sm text-gray-500">
                 {scan.commit_sha && <span>Commit: {scan.commit_sha.slice(0, 7)}</span>}
@@ -208,8 +301,23 @@ export default function ScanDetailPage() {
               </div>
             </div>
 
+            {/* Progress bar */}
+            {progress && scan.status === "running" && (
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-1">
+                  Analyzing chunk {progress.current} of {progress.total}...
+                </p>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all"
+                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Queued/Running state */}
-            {(scan.status === "queued" || scan.status === "running") && (
+            {(scan.status === "queued" || scan.status === "running") && !progress && (
               <div className="text-center py-12">
                 <p className="text-blue-600 animate-pulse text-lg">
                   Scan in progress... Analyzing repository for security vulnerabilities.
@@ -264,7 +372,6 @@ export default function ScanDetailPage() {
                   <ComparisonTable data={comparisonData} onTriageUpdate={handleTriageUpdate} />
                 ) : (
                   <>
-                    {/* Severity summary */}
                     {findings.length > 0 && (
                       <>
                         <div className="flex items-center justify-between">
@@ -330,7 +437,6 @@ export default function ScanDetailPage() {
                           </div>
                         </div>
 
-                        {/* Filtered findings */}
                         {filteredFindings.length === 0 ? (
                           <p className="text-gray-500 text-center py-8">No findings match the selected filters.</p>
                         ) : (
@@ -341,7 +447,6 @@ export default function ScanDetailPage() {
                       </>
                     )}
 
-                    {/* No findings */}
                     {findings.length === 0 && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
                         <p className="text-green-700 font-medium text-lg">No vulnerabilities found</p>
@@ -350,6 +455,18 @@ export default function ScanDetailPage() {
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Running with progressive findings */}
+            {scan.status === "running" && findings.length > 0 && (
+              <div className="space-y-4 mt-4">
+                <h2 className="text-lg font-semibold text-gray-700">
+                  Findings so far ({findings.length})
+                </h2>
+                {findings.map((f) => (
+                  <FindingCard key={f.id} finding={f} />
+                ))}
               </div>
             )}
           </>

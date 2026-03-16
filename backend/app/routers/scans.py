@@ -1,6 +1,7 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -8,7 +9,7 @@ from app.deps import get_current_user
 from app.models.user import User
 from app.schemas.scan import CreateScanRequest, ScanResponse
 from app.schemas.finding import FindingResponse
-from app.services import scan_service, finding_service
+from app.services import scan_service, finding_service, sarif_service
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
 
@@ -43,6 +44,24 @@ async def compare_scans_endpoint(
 ):
     result = await finding_service.compare_scans(db, base, head, current_user.id)
     return {"success": True, "data": result}
+
+
+@router.get("/{scan_id}/sarif")
+async def export_sarif(
+    scan_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scan = await scan_service.get_scan(db, scan_id, current_user.id)
+    if scan.status != "complete":
+        raise HTTPException(status_code=400, detail={"error": {"code": "SCAN_NOT_COMPLETE", "message": "Scan must be complete to export SARIF."}})
+    rows = await finding_service.get_findings_for_scan(db, scan_id, current_user.id)
+    findings = [f for f, _t in rows]
+    sarif = sarif_service.generate_sarif(scan, findings)
+    return JSONResponse(
+        content=sarif,
+        headers={"Content-Disposition": f"attachment; filename=zeropath-scan-{scan_id}.sarif.json"},
+    )
 
 
 @router.get("/{scan_id}")
