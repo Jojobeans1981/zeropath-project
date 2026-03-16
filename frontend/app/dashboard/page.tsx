@@ -33,7 +33,7 @@ export default function DashboardPage() {
     }
 
     async function fetchRepos() {
-      const res = await apiFetch<Repo[]>("/api/repos");
+      const res = await apiFetch<Repo[]>("/api/repos/");
       if (res.success && res.data) {
         setRepos(res.data);
       }
@@ -51,7 +51,7 @@ export default function DashboardPage() {
     const body: Record<string, string> = { url };
     if (githubToken) body.github_token = githubToken;
 
-    const res = await apiFetch<Repo>("/api/repos", {
+    const res = await apiFetch<Repo>("/api/repos/", {
       method: "POST",
       body: JSON.stringify(body),
     });
