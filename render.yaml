@@ -1,3 +1,8 @@
+databases:
+  - name: zeropath-db
+    region: oregon
+    plan: free
+
 services:
   - type: web
     name: zeropath-api
@@ -8,7 +13,9 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        value: sqlite+aiosqlite:///./zeropath.db
+        fromDatabase:
+          name: zeropath-db
+          property: connectionString
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: JWT_SECRET
@@ -34,7 +41,9 @@ services:
     startCommand: celery -A app.workers.scan_worker worker --loglevel=info --concurrency=2
     envVars:
       - key: DATABASE_URL
-        value: sqlite+aiosqlite:///./zeropath.db
+        fromDatabase:
+          name: zeropath-db
+          property: connectionString
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: JWT_SECRET

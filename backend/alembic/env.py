@@ -48,6 +48,10 @@ async def run_async_migrations():
     async_url = database_url
     if "sqlite:///" in async_url and "+aiosqlite" not in async_url:
         async_url = async_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+    elif async_url.startswith("postgres://"):
+        async_url = async_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif async_url.startswith("postgresql://") and "+asyncpg" not in async_url:
+        async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
     connectable = create_async_engine(async_url, poolclass=pool.NullPool)
 
