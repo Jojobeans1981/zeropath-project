@@ -14,7 +14,7 @@ class Remediation(Base):
     fixed_code = Column(String, nullable=False)
     explanation = Column(String, nullable=False)
     confidence = Column(String, nullable=False, default="medium")
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     finding = relationship("Finding", backref="remediation")

@@ -19,5 +19,5 @@ class Finding(Base):
     description = Column(String, nullable=False)
     explanation = Column(String, nullable=False)
     language = Column(String, default="python", nullable=False)
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

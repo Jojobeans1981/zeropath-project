@@ -17,8 +17,8 @@ class TriageStatus(Base):
     user_id = Column(CHAR(36), ForeignKey("users.id"), index=True, nullable=False)
     status = Column(String, nullable=False, default="open")
     notes = Column(String, nullable=True)
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     finding = relationship("Finding", backref="triage_records")
     user = relationship("User")

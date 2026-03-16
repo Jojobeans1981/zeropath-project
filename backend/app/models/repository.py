@@ -17,7 +17,7 @@ class Repository(Base):
     url = Column(String, nullable=False)
     name = Column(String, nullable=False)
     github_token_encrypted = Column(String, nullable=True)
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     user = relationship("User", backref="repositories")
