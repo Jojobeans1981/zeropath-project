@@ -64,53 +64,68 @@ def run_scan(scan_id: str) -> None:
         scan.commit_sha = commit_sha
         db.commit()
 
-        # 4. Discover Python files
-        py_files = discover_python_files(temp_dir)
-        if not py_files:
-            logger.info("[Worker] No Python files found in %s", repo.name)
+        # 4. Discover files (multi-language)
+        from app.scanner.git_ops import discover_source_files
+        from app.scanner.prompts import LANGUAGE_PROMPTS, SYSTEM_PROMPT
+
+        files_by_lang = discover_source_files(temp_dir)
+        if not files_by_lang:
+            logger.info("[Worker] No source files found in %s", repo.name)
             scan.status = "complete"
             scan.files_scanned = 0
             scan.completed_at = datetime.now(timezone.utc)
             db.commit()
             return
 
-        # 5. Read file contents
-        file_contents: List[FileContent] = []
-        for rel_path in py_files:
-            full_path = temp_dir / rel_path
-            try:
-                content = full_path.read_text(encoding="utf-8", errors="replace")
-                file_contents.append(FileContent(
-                    path=str(rel_path),
-                    content=content,
-                    line_count=content.count("\n") + 1,
-                ))
-            except Exception as e:
-                logger.warning("[Worker] Could not read %s: %s", rel_path, e)
-
-        # 6. Chunk files
-        chunks = chunk_files(file_contents)
-        logger.info("[Worker] Processing %d chunks for %d files", len(chunks), len(file_contents))
-
-        # 7. Analyze each chunk
+        # 5-7. Read, chunk, and analyze per language
+        total_files = 0
         all_findings: List[dict] = []
-        for i, chunk in enumerate(chunks):
-            logger.info("[Worker] Analyzing chunk %d/%d", i + 1, len(chunks))
-            findings = analyze_chunk(chunk)
-            all_findings.extend(findings)
-            try:
-                publish_scan_event_sync(scan_id, "chunk_progress", {"current": i + 1, "total": len(chunks)})
-                for finding_dict in findings:
-                    publish_scan_event_sync(scan_id, "finding_discovered", finding_dict)
-            except Exception:
-                logger.warning("[Worker] Failed to publish event (non-fatal)")
+        all_file_contents: List[FileContent] = []
+        total_chunks = 0
+
+        # Count total chunks first for progress
+        for lang, file_paths in files_by_lang.items():
+            file_contents: List[FileContent] = []
+            for rel_path in file_paths:
+                full_path = temp_dir / rel_path
+                try:
+                    content = full_path.read_text(encoding="utf-8", errors="replace")
+                    file_contents.append(FileContent(
+                        path=str(rel_path),
+                        content=content,
+                        line_count=content.count("\n") + 1,
+                    ))
+                except Exception as e:
+                    logger.warning("[Worker] Could not read %s: %s", rel_path, e)
+
+            total_files += len(file_contents)
+            all_file_contents.extend(file_contents)
+
+            system_prompt = LANGUAGE_PROMPTS.get(lang, SYSTEM_PROMPT)
+            chunks = chunk_files(file_contents)
+            total_chunks += len(chunks)
+
+            for i, chunk in enumerate(chunks):
+                logger.info("[Worker] Analyzing %s chunk %d/%d", lang, i + 1, len(chunks))
+                findings = analyze_chunk(chunk, system_prompt=system_prompt)
+                for f in findings:
+                    f["language"] = lang
+                all_findings.extend(findings)
+                try:
+                    publish_scan_event_sync(scan_id, "chunk_progress", {"current": len(all_findings), "total": total_chunks})
+                    for finding_dict in findings:
+                        publish_scan_event_sync(scan_id, "finding_discovered", finding_dict)
+                except Exception:
+                    logger.warning("[Worker] Failed to publish event (non-fatal)")
+
+        logger.info("[Worker] Analyzed %d files across %d languages", total_files, len(files_by_lang))
 
         # 8. Deduplicate and persist findings
         seen_hashes: set = set()
         persisted_count = 0
 
         # Build file content lookup for dedup context
-        content_map = {fc.path: fc.content for fc in file_contents}
+        content_map = {fc.path: fc.content for fc in all_file_contents}
 
         for raw in all_findings:
             file_content = content_map.get(raw["file_path"], "")
@@ -136,6 +151,7 @@ def run_scan(scan_id: str) -> None:
                 code_snippet=raw["code_snippet"],
                 description=raw["description"],
                 explanation=raw["explanation"],
+                language=raw.get("language", "python"),
             )
             db.add(finding)
             persisted_count += 1
@@ -149,7 +165,7 @@ def run_scan(scan_id: str) -> None:
 
         # 9. Mark complete
         scan.status = "complete"
-        scan.files_scanned = len(file_contents)
+        scan.files_scanned = total_files
         scan.completed_at = datetime.now(timezone.utc)
         db.commit()
         logger.info("[Worker] Scan %s complete: %d files, %d findings", scan_id, len(file_contents), persisted_count)

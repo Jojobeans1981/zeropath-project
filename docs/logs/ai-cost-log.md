@@ -14,3 +14,5 @@ Tracks AI/LLM API usage and estimated costs for the ZeroPath project build.
 | 2026-03-16 | Claude Opus 4.6 1M | 7     | 4                | ~35k              | ~18k               | Tests (23 pass), README, NavHeader polish, deployment config |
 | 2026-03-16 | Claude Opus 4.6 1M | 8     | 3                | ~25k              | ~12k               | Private repo auth (Fernet encryption), SARIF export, frontend token+download |
 | 2026-03-16 | Claude Opus 4.6 1M | 9     | 2                | ~30k              | ~14k               | WebSocket real-time updates, Redis pub/sub, progress bar, polling fallback |
+| 2026-03-16 | Claude Opus 4.6 1M | 10    | 3                | ~30k              | ~14k               | RBAC (admin/member/viewer), admin panel, GitHub webhook endpoint |
+| 2026-03-16 | Claude Opus 4.6 1M | 11    | 3                | ~35k              | ~16k               | Remediation model/service, multi-language JS/TS, frontend fix UI |

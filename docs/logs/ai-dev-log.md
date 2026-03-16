@@ -111,3 +111,31 @@ Records what was built by AI in each session, including decisions made and devia
 - Frontend: WebSocket with polling fallback, progress bar showing chunk N of M, progressive findings during scan
 - On scan_complete, does final fetchScan() to get accurate triage data
 - 23/23 tests pass, frontend TypeScript clean
+
+## 2026-03-16 — Phase 10: RBAC + CI/CD Webhooks
+
+- Added `role` column to User model (admin/member/viewer) with migration (server_default for SQLite compat)
+- Created require_role() dependency factory in deps.py
+- Role-gated write endpoints: POST repos, POST scans, PATCH triage require admin/member; GET endpoints open to all authenticated
+- First signup gets admin role, subsequent users get member
+- Created admin router: GET /api/admin/users, PATCH /api/admin/users/:id (can't self-modify, can't demote last admin)
+- Created admin frontend page with user table and role dropdown
+- NavHeader shows "Admin" link for admin users
+- Added UserResponse.role field to auth schema
+- Created GitHub webhook: HMAC signature verification, push event handling, auto-scan trigger
+- 23/23 tests pass, frontend TypeScript clean
+
+## 2026-03-16 — Phase 11: Auto-Remediation + Multi-Language
+
+- Created Remediation model (finding_id unique FK, fixed_code, explanation, confidence) + migration
+- Added remediation prompts: REMEDIATION_SYSTEM_PROMPT + REMEDIATION_USER_TEMPLATE
+- Created remediation_service: cache-first LLM fix generation with JSON parsing
+- Added POST/GET /api/findings/:id/remediation endpoints
+- Added `language` column to Finding model + migration (server_default for SQLite)
+- Added JAVASCRIPT_SYSTEM_PROMPT with JS/TS-specific vulnerability classes (prototype pollution, DOM XSS, NoSQL injection, etc.)
+- Added LANGUAGE_CONFIG and discover_source_files() for multi-language file discovery
+- Updated analyzer to accept custom system_prompt parameter
+- Rewrote worker scan pipeline for multi-language: iterates languages, uses per-language prompts, tags findings
+- Created RemediationView component (side-by-side original vs fixed, confidence badge)
+- Updated FindingCard: language badge (JS/TS), "Generate Fix Suggestion" button, RemediationView
+- 23/23 tests pass, frontend TypeScript clean

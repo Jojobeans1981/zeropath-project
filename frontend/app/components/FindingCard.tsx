@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { SeverityBadge } from "./SeverityBadge";
+import { RemediationView } from "./RemediationView";
 import { apiFetch } from "@/lib/api";
 
 interface Finding {
@@ -18,6 +19,7 @@ interface Finding {
   explanation: string;
   triage_status: string | null;
   triage_notes: string | null;
+  language?: string;
   created_at: string;
 }
 
@@ -37,6 +39,8 @@ export function FindingCard({ finding, onTriageUpdate }: FindingCardProps) {
   const [triageStatus, setTriageStatus] = useState(finding.triage_status || "");
   const [triageNotes, setTriageNotes] = useState(finding.triage_notes || "");
   const [saving, setSaving] = useState(false);
+  const [remediation, setRemediation] = useState<{fixed_code: string; explanation: string; confidence: string} | null>(null);
+  const [generatingFix, setGeneratingFix] = useState(false);
 
   async function handleSaveTriage() {
     setSaving(true);
@@ -48,6 +52,18 @@ export function FindingCard({ finding, onTriageUpdate }: FindingCardProps) {
       onTriageUpdate(finding.id, triageStatus, triageNotes || null);
     }
     setSaving(false);
+  }
+
+  async function handleGenerateFix() {
+    setGeneratingFix(true);
+    const res = await apiFetch<{fixed_code: string; explanation: string; confidence: string}>(
+      `/api/findings/${finding.id}/remediation`,
+      { method: "POST" }
+    );
+    if (res.success && res.data) {
+      setRemediation(res.data);
+    }
+    setGeneratingFix(false);
   }
 
   return (
@@ -63,6 +79,11 @@ export function FindingCard({ finding, onTriageUpdate }: FindingCardProps) {
           <ChevronRightIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
         )}
         <SeverityBadge severity={finding.severity} />
+        {finding.language && finding.language !== "python" && (
+          <span className="px-1.5 py-0.5 rounded text-xs font-mono bg-purple-100 text-purple-800">
+            {finding.language === "javascript" ? "JS/TS" : finding.language.toUpperCase()}
+          </span>
+        )}
         {finding.triage_status && (
           <span className={`px-2 py-0.5 rounded text-xs font-medium border ${TRIAGE_BADGE[finding.triage_status] || ""}`}>
             {finding.triage_status === "false_positive" ? "FP" : finding.triage_status === "resolved" ? "Resolved" : "Open"}
@@ -131,6 +152,26 @@ export function FindingCard({ finding, onTriageUpdate }: FindingCardProps) {
             >
               {saving ? "Saving..." : "Save Triage"}
             </button>
+          </div>
+
+          {/* Remediation */}
+          <div className="border-t border-gray-100 pt-3 mt-3">
+            {!remediation ? (
+              <button
+                onClick={handleGenerateFix}
+                disabled={generatingFix}
+                className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                {generatingFix ? "Generating fix..." : "Generate Fix Suggestion"}
+              </button>
+            ) : (
+              <RemediationView
+                original={finding.code_snippet}
+                fixed={remediation.fixed_code}
+                explanation={remediation.explanation}
+                confidence={remediation.confidence}
+              />
+            )}
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.schemas.scan import CreateScanRequest, ScanResponse
 from app.schemas.finding import FindingResponse
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/scans", tags=["scans"])
 async def create_scan(
     req: CreateScanRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["admin", "member"])),
 ):
     scan = await scan_service.create_scan(db, req.repo_id, current_user.id)
     data = ScanResponse(

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -33,9 +33,15 @@ async def signup(req: SignupRequest, db: AsyncSession = Depends(get_db)):
             detail={"error": {"code": "EMAIL_EXISTS", "message": "An account with this email already exists."}},
         )
 
+    # First user gets admin role
+    count_result = await db.execute(select(func.count(User.id)))
+    user_count = count_result.scalar()
+    role = "admin" if user_count == 0 else "member"
+
     user = User(
         email=req.email,
         password_hash=auth_service.hash_password(req.password),
+        role=role,
     )
     db.add(user)
     await db.commit()
@@ -89,6 +95,7 @@ async def me(current_user: User = Depends(get_current_user)):
     user_data = UserResponse(
         id=current_user.id,
         email=current_user.email,
+        role=current_user.role,
         created_at=current_user.created_at,
     )
     return {"success": True, "data": user_data.model_dump()}

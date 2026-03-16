@@ -56,8 +56,10 @@ def validate_finding(finding: dict) -> bool:
     return True
 
 
-def analyze_chunk(chunk: Chunk, max_retries: int = 1) -> List[dict]:
+def analyze_chunk(chunk: Chunk, max_retries: int = 1, system_prompt: str = None) -> List[dict]:
     """Send a chunk to Claude for security analysis. Returns validated findings."""
+    if system_prompt is None:
+        system_prompt = SYSTEM_PROMPT
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     user_prompt = build_user_prompt(chunk)
 
@@ -69,7 +71,7 @@ def analyze_chunk(chunk: Chunk, max_retries: int = 1) -> List[dict]:
             response = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4096,
-                system=SYSTEM_PROMPT,
+                system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             )
 

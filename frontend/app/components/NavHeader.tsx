@@ -9,14 +9,16 @@ import { clearTokens, getAccessToken } from "@/lib/auth";
 export function NavHeader() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getAccessToken()) return;
 
     async function fetchUser() {
-      const res = await apiFetch<{ id: string; email: string; created_at: string }>("/api/auth/me");
+      const res = await apiFetch<{ id: string; email: string; role: string; created_at: string }>("/api/auth/me");
       if (res.success && res.data) {
         setEmail(res.data.email);
+        setRole(res.data.role);
       } else {
         clearTokens();
         router.push("/login");
@@ -37,6 +39,11 @@ export function NavHeader() {
         ZeroPath
       </Link>
       <div className="flex items-center gap-4">
+        {role === "admin" && (
+          <Link href="/admin" className="text-sm text-gray-400 hover:text-white">
+            Admin
+          </Link>
+        )}
         {email && <span className="text-sm text-gray-300">{email}</span>}
         {email && (
           <button

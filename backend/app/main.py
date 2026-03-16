@@ -29,10 +29,12 @@ async def health():
     return {"status": "ok"}
 
 
-from app.routers import auth, repos, scans, findings, websocket
+from app.routers import auth, repos, scans, findings, websocket, admin, webhooks
 
 app.include_router(auth.router)
 app.include_router(repos.router)
 app.include_router(scans.router)
 app.include_router(findings.router)
 app.include_router(websocket.router)
+app.include_router(admin.router)
+app.include_router(webhooks.router)

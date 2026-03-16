@@ -30,4 +30,5 @@ class AccessTokenResponse(BaseModel):
 class UserResponse(BaseModel):
     id: str
     email: str
+    role: str
     created_at: datetime

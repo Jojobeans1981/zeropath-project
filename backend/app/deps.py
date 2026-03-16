@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
@@ -23,3 +25,17 @@ async def get_current_user(
             detail={"error": {"code": "INVALID_TOKEN", "message": "User not found."}},
         )
     return user
+
+
+def require_role(allowed_roles: List[str]):
+    """Dependency factory: ensures current user has one of the allowed roles."""
+    async def role_checker(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=403,
+                detail={"error": {"code": "INSUFFICIENT_ROLE", "message": f"This action requires one of these roles: {', '.join(allowed_roles)}"}},
+            )
+        return current_user
+    return role_checker

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     port: int = 8000
     repo_encryption_key: str = ""
+    github_webhook_secret: str = ""
 
     model_config = SettingsConfigDict(env_file=".env")
 

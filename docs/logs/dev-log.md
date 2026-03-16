@@ -68,5 +68,15 @@ General development progress and decisions for the ZeroPath Security Scanner pro
 - Worker publishes: status_change, chunk_progress, finding_discovered, scan_complete, scan_failed
 - Frontend: WebSocket with polling fallback, progress bar, progressive findings
 
+### Phase 10: RBAC + CI/CD Webhooks — COMPLETE
+- User roles: admin/member/viewer with require_role() dependency factory
+- First user auto-admin, role-gated writes, admin panel for user management
+- GitHub webhook: HMAC signature verification, auto-scan on push events
+
+### Phase 11: Auto-Remediation + Multi-Language — COMPLETE
+- LLM-powered fix suggestions: cache-first, on-demand generation via Claude
+- Multi-language scanning: Python + JavaScript/TypeScript with language-specific prompts
+- Frontend: RemediationView (side-by-side diff), language badges, "Generate Fix" button
+
 ### Project Status
-All 10 phases (0-9) complete. Phases 10-11 remaining (stretch goals).
+ALL 12 PHASES (0-11) COMPLETE. Full project build finished.

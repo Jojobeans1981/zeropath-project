@@ -18,5 +18,6 @@ class Finding(Base):
     code_snippet = Column(String, nullable=False)
     description = Column(String, nullable=False)
     explanation = Column(String, nullable=False)
+    language = Column(String, default="python", nullable=False)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
