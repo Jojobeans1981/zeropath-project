@@ -46,7 +46,7 @@ def prioritize_files(files: List[FileContent]) -> List[FileContent]:
     return security + other
 
 
-def chunk_files(files: List[FileContent], max_tokens: int = 80000) -> List[Chunk]:
+def chunk_files(files: List[FileContent], max_tokens: int = 20000) -> List[Chunk]:
     """Group files into chunks that fit within max_tokens."""
     prioritized = prioritize_files(files)
     chunks: List[Chunk] = []

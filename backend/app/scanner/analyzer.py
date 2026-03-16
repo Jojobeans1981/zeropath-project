@@ -69,7 +69,7 @@ def analyze_chunk(chunk: Chunk, max_retries: int = 1, system_prompt: str = None)
     for attempt in range(max_retries + 1):
         try:
             response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=4096,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
