@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: zeropath-api
+    runtime: python
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./zeropath.db
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        fromService:
+          name: zeropath-redis
+          type: redis
+          property: connectionString
+      - key: SCAN_WORKDIR
+        value: /tmp/zeropath-scans
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.11
+
+  - type: worker
+    name: zeropath-worker
+    runtime: python
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A app.workers.scan_worker worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./zeropath.db
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: zeropath-redis
+          type: redis
+          property: connectionString
+      - key: SCAN_WORKDIR
+        value: /tmp/zeropath-scans
+      - key: PYTHON_VERSION
+        value: 3.11.11
+
+  - type: redis
+    name: zeropath-redis
+    region: oregon
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
