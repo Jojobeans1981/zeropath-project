@@ -5,9 +5,10 @@ from app.config import settings
 
 app = FastAPI(title="ZeroPath Security Scanner", version="1.0.0")
 
+origins = [o.strip().rstrip("/") for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
