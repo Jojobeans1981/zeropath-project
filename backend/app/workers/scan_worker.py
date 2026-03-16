@@ -106,6 +106,11 @@ def run_scan(scan_id: str) -> None:
             total_chunks += len(chunks)
 
             for i, chunk in enumerate(chunks):
+                # Rate limit: wait between chunks to avoid 30k tokens/min limit
+                if i > 0:
+                    import time
+                    logger.info("[Worker] Rate limit pause (45s between chunks)")
+                    time.sleep(45)
                 logger.info("[Worker] Analyzing %s chunk %d/%d", lang, i + 1, len(chunks))
                 findings = analyze_chunk(chunk, system_prompt=system_prompt)
                 for f in findings:

@@ -56,7 +56,7 @@ def validate_finding(finding: dict) -> bool:
     return True
 
 
-def analyze_chunk(chunk: Chunk, max_retries: int = 1, system_prompt: str = None) -> List[dict]:
+def analyze_chunk(chunk: Chunk, max_retries: int = 3, system_prompt: str = None) -> List[dict]:
     """Send a chunk to Claude for security analysis. Returns validated findings."""
     if system_prompt is None:
         system_prompt = SYSTEM_PROMPT
@@ -92,8 +92,9 @@ def analyze_chunk(chunk: Chunk, max_retries: int = 1, system_prompt: str = None)
 
         except anthropic.RateLimitError:
             if attempt < max_retries:
-                logger.warning("[Scanner] Rate limited, retrying in 5s (attempt %d)", attempt + 1)
-                time.sleep(5)
+                wait = 60 * (attempt + 1)
+                logger.warning("[Scanner] Rate limited, retrying in %ds (attempt %d)", wait, attempt + 1)
+                time.sleep(wait)
             else:
                 raise
         except anthropic.APIError as e:
