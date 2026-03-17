@@ -77,13 +77,11 @@ def run_scan(scan_id: str) -> None:
             db.commit()
             return
 
-        # 5-7. Read, chunk, and analyze per language
+        # 5. Read all files
         total_files = 0
         all_findings: List[dict] = []
         all_file_contents: List[FileContent] = []
-        total_chunks = 0
 
-        # Count total chunks first for progress
         for lang, file_paths in files_by_lang.items():
             file_contents: List[FileContent] = []
             for rel_path in file_paths:
@@ -101,27 +99,83 @@ def run_scan(scan_id: str) -> None:
             total_files += len(file_contents)
             all_file_contents.extend(file_contents)
 
-            system_prompt = LANGUAGE_PROMPTS.get(lang, SYSTEM_PROMPT)
-            chunks = chunk_files(file_contents)
-            total_chunks += len(chunks)
+        # 6. HYBRID PIPELINE: AST taint analysis first (Python only), then LLM
+        taint_findings: List[dict] = []
+        files_needing_llm: List[FileContent] = []
+        taint_analyzed_files: set = set()
 
-            for i, chunk in enumerate(chunks):
-                # Rate limit: wait between chunks to avoid 30k tokens/min limit
-                if i > 0:
-                    import time
-                    logger.info("[Worker] Rate limit pause (45s between chunks)")
-                    time.sleep(45)
-                logger.info("[Worker] Analyzing %s chunk %d/%d", lang, i + 1, len(chunks))
-                findings = analyze_chunk(chunk, system_prompt=system_prompt)
-                for f in findings:
-                    f["language"] = lang
-                all_findings.extend(findings)
-                try:
-                    publish_scan_event_sync(scan_id, "chunk_progress", {"current": len(all_findings), "total": total_chunks})
-                    for finding_dict in findings:
-                        publish_scan_event_sync(scan_id, "finding_discovered", finding_dict)
-                except Exception:
-                    logger.warning("[Worker] Failed to publish event (non-fatal)")
+        if "python" in files_by_lang:
+            from app.scanner.taint_analyzer import analyze_file_taint, get_pre_findings
+            logger.info("[Worker] Running AST taint analysis on %d Python files", len([f for f in all_file_contents if f.path.endswith(".py")]))
+
+            for fc in all_file_contents:
+                if not fc.path.endswith(".py"):
+                    continue
+                taint_analyzed_files.add(fc.path)
+                result = analyze_file_taint(fc.content, fc.path)
+                if result.paths:
+                    pre_findings = get_pre_findings(result)
+                    for pf in pre_findings:
+                        pf["language"] = "python"
+                    taint_findings.extend(pre_findings)
+                    files_needing_llm.append(fc)
+                    logger.info("[Worker] Taint: %s has %d suspicious paths", fc.path, len(result.paths))
+
+            logger.info("[Worker] Taint analysis: %d files with taint paths out of %d total Python files",
+                        len(files_needing_llm), len(taint_analyzed_files))
+
+            try:
+                publish_scan_event_sync(scan_id, "status_change", {
+                    "status": "running",
+                    "detail": f"AST analysis found {len(taint_findings)} suspicious paths in {len(files_needing_llm)} files"
+                })
+            except Exception:
+                pass
+
+        # 7. LLM analysis: only files with taint paths + all non-Python files
+        files_for_llm: List[FileContent] = list(files_needing_llm)
+        for fc in all_file_contents:
+            if fc.path not in taint_analyzed_files:
+                files_for_llm.append(fc)  # Non-Python files go straight to LLM
+
+        if files_for_llm:
+            logger.info("[Worker] Sending %d files to LLM (filtered from %d total)", len(files_for_llm), len(all_file_contents))
+
+            for lang, file_paths in files_by_lang.items():
+                lang_files = [f for f in files_for_llm if any(f.path == str(p) for p in file_paths)]
+                if not lang_files:
+                    continue
+
+                system_prompt = LANGUAGE_PROMPTS.get(lang, SYSTEM_PROMPT)
+                chunks = chunk_files(lang_files)
+
+                for i, chunk in enumerate(chunks):
+                    if i > 0:
+                        import time
+                        logger.info("[Worker] Rate limit pause (45s between chunks)")
+                        time.sleep(45)
+                    logger.info("[Worker] LLM analyzing %s chunk %d/%d (%d files)",
+                                lang, i + 1, len(chunks), len(chunk.files))
+                    findings = analyze_chunk(chunk, system_prompt=system_prompt)
+                    for f in findings:
+                        f["language"] = lang
+                    all_findings.extend(findings)
+                    try:
+                        publish_scan_event_sync(scan_id, "chunk_progress", {"current": i + 1, "total": len(chunks)})
+                        for finding_dict in findings:
+                            publish_scan_event_sync(scan_id, "finding_discovered", finding_dict)
+                    except Exception:
+                        logger.warning("[Worker] Failed to publish event (non-fatal)")
+        else:
+            logger.info("[Worker] No files need LLM analysis — all findings from AST taint analysis")
+
+        # Merge taint findings (high-confidence ones that don't need LLM) with LLM findings
+        # High-confidence taint findings get added as-is with a description
+        for tf in taint_findings:
+            if tf["confidence"] == "high":
+                tf["description"] = f"{tf['vulnerability_type']}: {tf['source_type']} flows to {tf['sink']}"
+                tf["explanation"] = f"User input from {tf['source']} ({tf['source_type']}) is passed to {tf['sink']} without sanitization. {tf.get('taint_trace', '')}"
+                all_findings.append(tf)
 
         logger.info("[Worker] Analyzed %d files across %d languages", total_files, len(files_by_lang))
 

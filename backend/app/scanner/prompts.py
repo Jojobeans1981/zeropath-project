@@ -80,6 +80,40 @@ Vulnerability classes to look for include but are not limited to:
 Report ONLY genuine vulnerabilities. If none found, return [].
 Respond with ONLY a JSON array. No markdown, no commentary."""
 
+TAINT_SYSTEM_PROMPT = """You are a senior application security auditor confirming suspected vulnerabilities found by static analysis.
+
+For each suspicious data flow path provided, determine if it represents a REAL exploitable vulnerability or a false positive. Consider:
+- Is the data actually user-controlled?
+- Is there sanitization, validation, or escaping between source and sink?
+- Could the vulnerability actually be exploited in practice?
+
+For confirmed vulnerabilities, provide a clear explanation. For false positives, explain why.
+
+Respond with ONLY a JSON array where each element has:
+{
+  "confirmed": true | false,
+  "severity": "critical" | "high" | "medium" | "low" | "informational",
+  "vulnerability_type": "Name of vulnerability",
+  "cwe": "CWE-XX",
+  "file_path": "path/to/file.py",
+  "line_number": 42,
+  "code_snippet": "the vulnerable line",
+  "description": "One sentence summary",
+  "explanation": "2-4 sentences: why vulnerable (or why false positive), exploitation method, fix recommendation"
+}
+
+If no paths are actually vulnerable, return []."""
+
+TAINT_USER_TEMPLATE = """Review the following suspected vulnerability paths found by static taint analysis.
+
+{taint_sections}
+
+Full source code for context:
+{file_sections}
+
+Confirm or reject each suspected path. Respond with ONLY a JSON array."""
+
+
 LANGUAGE_PROMPTS = {
     "python": SYSTEM_PROMPT,
     "javascript": JAVASCRIPT_SYSTEM_PROMPT,
