@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { clearTokens, getAccessToken } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 
 export function NavHeader() {
   const router = useRouter();
+  const { dark, toggle } = useTheme();
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
 
@@ -34,21 +36,33 @@ export function NavHeader() {
   }
 
   return (
-    <nav className="bg-gray-900 text-white px-6 py-3 flex items-center justify-between sticky top-0 z-50">
-      <Link href="/dashboard" className="font-bold text-lg">
-        ZeroPath
-      </Link>
-      <div className="flex items-center gap-4">
+    <nav className="bg-gray-900 dark:bg-slate-950 text-white px-6 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-800 dark:border-slate-800">
+      <div className="flex items-center gap-6">
+        <Link href="/dashboard" className="font-bold text-lg tracking-tight">
+          <span className="text-blue-400">Zero</span>Path
+        </Link>
+        <Link href="/dashboard" className="text-sm text-gray-400 hover:text-white transition-colors">
+          Dashboard
+        </Link>
         {role === "admin" && (
-          <Link href="/admin" className="text-sm text-gray-400 hover:text-white">
+          <Link href="/admin" className="text-sm text-gray-400 hover:text-white transition-colors">
             Admin
           </Link>
         )}
-        {email && <span className="text-sm text-gray-300">{email}</span>}
+      </div>
+      <div className="flex items-center gap-4">
+        <button
+          onClick={toggle}
+          className="text-gray-400 hover:text-white transition-colors text-sm"
+          title={dark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {dark ? "☀️" : "🌙"}
+        </button>
+        {email && <span className="text-sm text-gray-400">{email}</span>}
         {email && (
           <button
             onClick={handleLogout}
-            className="text-sm text-gray-400 hover:text-white"
+            className="text-sm text-gray-500 hover:text-white transition-colors"
           >
             Logout
           </button>

@@ -78,5 +78,13 @@ General development progress and decisions for the ZeroPath Security Scanner pro
 - Multi-language scanning: Python + JavaScript/TypeScript with language-specific prompts
 - Frontend: RemediationView (side-by-side diff), language badges, "Generate Fix" button
 
+### 2026 Enhancement Pass — COMPLETE
+- **Security hardening:** Rate limiting middleware (per-IP, stricter for scans), security headers (CSP, HSTS, X-Frame-Options, etc.)
+- **Analytics dashboard:** Stats endpoint with severity breakdown, top vuln types, language distribution, triage counts
+- **Dark mode:** Full dark theme with system preference detection, smooth transitions, toggle in nav
+- **UI polish:** Animated slide-in cards, branded login/signup, severity distribution bar chart, top vulns horizontal bars
+- **File caching service:** SHA-256 content hashing for change detection across scans
+- **Version bump:** 2.0.0 with hybrid-sast-llm engine identifier
+
 ### Project Status
-ALL 12 PHASES (0-11) COMPLETE. Full project build finished.
+ALL 12 PHASES (0-11) + ENHANCEMENTS COMPLETE.
